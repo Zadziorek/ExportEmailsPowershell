@@ -7,13 +7,6 @@ $form.Text = "Outlook Email Exporter"
 $form.Size = New-Object System.Drawing.Size(400, 400)
 $form.StartPosition = "CenterScreen"
 
-# Create a label for the shared mailbox dropdown
-$label = New-Object System.Windows.Forms.Label
-$label.Location = New-Object System.Drawing.Point(10, 20)
-$label.Size = New-Object System.Drawing.Size(120, 20)
-$label.Text = "Shared Mailbox:"
-$form.Controls.Add($label)
-
 # Create a ComboBox for selecting the shared mailbox
 $mailboxComboBox = New-Object System.Windows.Forms.ComboBox
 $mailboxComboBox.Location = New-Object System.Drawing.Point(130, 20)
@@ -21,36 +14,16 @@ $mailboxComboBox.Size = New-Object System.Drawing.Size(240, 20)
 $mailboxComboBox.DropDownStyle = 'DropDownList'
 $form.Controls.Add($mailboxComboBox)
 
-# Create a button to browse folders
-$browseButton = New-Object System.Windows.Forms.Button
-$browseButton.Location = New-Object System.Drawing.Point(130, 50)
-$browseButton.Size = New-Object System.Drawing.Size(100, 30)
-$browseButton.Text = "Browse Folders"
-$form.Controls.Add($browseButton)
-
 # Create a TreeView to display folders and subfolders
 $folderTreeView = New-Object System.Windows.Forms.TreeView
-$folderTreeView.Location = New-Object System.Drawing.Point(10, 90)
-$folderTreeView.Size = New-Object System.Drawing.Size(360, 180)
+$folderTreeView.Location = New-Object System.Drawing.Point(10, 50)
+$folderTreeView.Size = New-Object System.Drawing.Size(360, 200)
 $folderTreeView.CheckBoxes = $true
 $form.Controls.Add($folderTreeView)
 
-# Create a label for the progress bar
-$progressLabel = New-Object System.Windows.Forms.Label
-$progressLabel.Location = New-Object System.Drawing.Point(10, 280)
-$progressLabel.Size = New-Object System.Drawing.Size(360, 20)
-$progressLabel.Text = "Progress:"
-$form.Controls.Add($progressLabel)
-
-# Create a progress bar
-$progressBar = New-Object System.Windows.Forms.ProgressBar
-$progressBar.Location = New-Object System.Drawing.Point(10, 300)
-$progressBar.Size = New-Object System.Drawing.Size(360, 30)
-$form.Controls.Add($progressBar)
-
 # Create a button to start the export
 $exportButton = New-Object System.Windows.Forms.Button
-$exportButton.Location = New-Object System.Drawing.Point(150, 340)
+$exportButton.Location = New-Object System.Drawing.Point(150, 270)
 $exportButton.Size = New-Object System.Drawing.Size(100, 30)
 $exportButton.Text = "Export Emails"
 $form.Controls.Add($exportButton)
@@ -72,26 +45,8 @@ function Populate-TreeView ($parentNode, $folder) {
     }
 }
 
-# Function to get the selected folders from the TreeView
-function Get-SelectedFolders ($node, $parentFolder) {
-    $selectedFolders = @()
-
-    if ($node.Checked) {
-        $folder = Get-OutlookFolder -folderName $node.Text -parentFolder $parentFolder
-        if ($folder) {
-            $selectedFolders += $folder
-        }
-    }
-
-    foreach ($childNode in $node.Nodes) {
-        $selectedFolders += Get-SelectedFolders -node $childNode -parentFolder $parentFolder
-    }
-
-    return $selectedFolders
-}
-
 # Browse button click event
-$browseButton.Add_Click({
+$mailboxComboBox.Add_SelectedIndexChanged({
     $selectedMailbox = $mailboxComboBox.SelectedItem
     if ($selectedMailbox) {
         $sharedFolder = $namespace.Folders.Item($selectedMailbox)
@@ -109,56 +64,32 @@ $browseButton.Add_Click({
 
 # Export button click event
 $exportButton.Add_Click({
-    $saveDialog = New-Object System.Windows.Forms.FolderBrowserDialog
-    $result = $saveDialog.ShowDialog()
-    if ($result -eq "OK") {
-        $saveDirectory = $saveDialog.SelectedPath
-        $totalItems = 0
-        $selectedFolders = @()
+    $selectedFolders = @()
 
-        # Collect all selected folders
-        foreach ($node in $folderTreeView.Nodes) {
-            $selectedFolders += Get-SelectedFolders -node $node -parentFolder $sharedFolder
-        }
-
-        # Calculate total number of items for the progress bar
-        foreach ($folder in $selectedFolders) {
-            $totalItems += $folder.Items.Count
-        }
-        $progressBar.Maximum = $totalItems
-        $progressBar.Value = 0
-
-        # Log for debugging
-        Write-Output "Total folders selected: $($selectedFolders.Count)"
-        Write-Output "Total items to export: $totalItems"
-
-        # Export emails from each selected folder
-        foreach ($folder in $selectedFolders) {
-            $folderPath = Join-Path $saveDirectory ($folder.FolderPath -replace "^\\", "" -replace "\\", "\")
-            if (-not (Test-Path -Path $folderPath)) {
-                Write-Output "Creating directory: $folderPath"  # Debugging log
-                New-Item -ItemType Directory -Path $folderPath | Out-Null
-            }
-
-            foreach ($item in $folder.Items) {
-                try {
-                    if ($item.Class -eq 43) {  # MailItem
-                        $subject = $item.Subject.Replace(":", "_").Replace("/", "_").Replace("\", "_").Replace("?", "_").Replace("*", "_").Replace("[", "_").Replace("]", "_")
-                        $filePath = Join-Path $folderPath "$subject.msg"
-                        Write-Output "Attempting to save email to: $filePath"  # Debugging log
-                        $item.SaveAs($filePath, 3)  # 3 specifies the .msg format
-                    }
-                } catch {
-                    Write-Error "Error saving email: $_"
-                }
-                $progressBar.Value += 1
-                $form.Refresh()  # Refresh the form to update the progress bar
+    # Collect all selected folders
+    foreach ($node in $folderTreeView.Nodes) {
+        if ($node.Checked) {
+            $folder = Get-OutlookFolder -folderName $node.Text -parentFolder $sharedFolder
+            if ($folder) {
+                $selectedFolders += $folder
+                Write-Output "Selected Folder: $($folder.FolderPath)"
             }
         }
-
-        [System.Windows.Forms.MessageBox]::Show("Emails exported successfully!", "Success")
-        $progressBar.Value = 0  # Reset the progress bar after completion
     }
+
+    foreach ($folder in $selectedFolders) {
+        Write-Output "Processing folder: $($folder.Name) with $($folder.Items.Count) items"
+        foreach ($item in $folder.Items) {
+            if ($item.Class -eq 43) {  # MailItem
+                $subject = $item.Subject.Replace(":", "_").Replace("/", "_").Replace("\", "_").Replace("?", "_").Replace("*", "_").Replace("[", "_").Replace("]", "_")
+                $filePath = Join-Path "C:\Temp\ExportedEmails" "$subject.msg"
+                Write-Output "Saving email: $subject"
+                $item.SaveAs($filePath, 3)  # 3 specifies the .msg format
+            }
+        }
+    }
+
+    [System.Windows.Forms.MessageBox]::Show("Emails exported successfully!", "Success")
 })
 
 # Function to get Outlook folder by name
