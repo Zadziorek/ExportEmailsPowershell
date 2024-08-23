@@ -67,17 +67,19 @@ foreach ($folder in $namespace.Folders) {
 # Function to populate the TreeView with folders and subfolders
 function Populate-TreeView ($parentNode, $folder) {
     foreach ($subFolder in $folder.Folders) {
+        # Create a node and attach the actual Outlook folder to it
         $node = $parentNode.Nodes.Add($subFolder.Name)
+        $node.Tag = $subFolder  # Associate the Outlook folder directly with the node
         Populate-TreeView -parentNode $node -folder $subFolder
     }
 }
 
 # Function to get the selected folders from the TreeView
-function Get-SelectedFolders ($parentFolder, $node) {
+function Get-SelectedFolders ($node) {
     $selectedFolders = @()
 
     if ($node.Checked) {
-        $folder = Get-OutlookFolder -folderName $node.Text -parentFolder $parentFolder
+        $folder = $node.Tag  # Retrieve the Outlook folder directly from the node
         if ($folder) {
             Write-Output "Selected Folder: $($folder.FolderPath)"  # Debugging
             $selectedFolders += $folder
@@ -85,7 +87,7 @@ function Get-SelectedFolders ($parentFolder, $node) {
     }
 
     foreach ($childNode in $node.Nodes) {
-        $selectedFolders += Get-SelectedFolders -parentFolder $parentFolder -node $childNode
+        $selectedFolders += Get-SelectedFolders -node $childNode
     }
 
     return $selectedFolders
@@ -103,6 +105,7 @@ $browseButton.Add_Click({
     $folderTreeView.Nodes.Clear()
     foreach ($folder in $sharedFolder.Folders) {
         $node = $folderTreeView.Nodes.Add($folder.Name)
+        $node.Tag = $folder  # Attach the actual Outlook folder to the node
         Populate-TreeView -parentNode $node -folder $folder
     }
     $folderTreeView.ExpandAll()  # Expand all nodes by default
@@ -119,7 +122,7 @@ $exportButton.Add_Click({
 
         # Collect all selected folders
         foreach ($node in $folderTreeView.Nodes) {
-            $selectedFolders += Get-SelectedFolders -parentFolder $sharedFolder -node $node
+            $selectedFolders += Get-SelectedFolders -node $node
         }
 
         # Verify selected folders
@@ -160,20 +163,6 @@ $exportButton.Add_Click({
         $progressBar.Value = 0  # Reset the progress bar after completion
     }
 })
-
-# Function to get Outlook folder by name
-function Get-OutlookFolder {
-    param (
-        [string]$folderName,
-        [Microsoft.Office.Interop.Outlook.MAPIFolder]$parentFolder
-    )
-    foreach ($folder in $parentFolder.Folders) {
-        if ($folder.Name -eq $folderName) {
-            return $folder
-        }
-    }
-    return $null
-}
 
 # Show the form
 $form.ShowDialog()
