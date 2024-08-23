@@ -72,6 +72,24 @@ function Populate-TreeView ($parentNode, $folder) {
     }
 }
 
+# Function to get the selected folders from the TreeView
+function Get-SelectedFolders ($node, $parentFolder) {
+    $selectedFolders = @()
+
+    if ($node.Checked) {
+        $folder = Get-OutlookFolder -folderName $node.Text -parentFolder $parentFolder
+        if ($folder) {
+            $selectedFolders += $folder
+        }
+    }
+
+    foreach ($childNode in $node.Nodes) {
+        $selectedFolders += Get-SelectedFolders -node $childNode -parentFolder $parentFolder
+    }
+
+    return $selectedFolders
+}
+
 # Browse button click event
 $browseButton.Add_Click({
     $selectedMailbox = $mailboxComboBox.SelectedItem
@@ -96,18 +114,11 @@ $exportButton.Add_Click({
     if ($result -eq "OK") {
         $saveDirectory = $saveDialog.SelectedPath
         $totalItems = 0
+        $selectedFolders = @()
 
         # Collect all selected folders
-        $selectedFolders = @()
         foreach ($node in $folderTreeView.Nodes) {
-            if ($node.Checked) {
-                $selectedFolders += Get-OutlookFolder -folderName $node.Text -parentFolder $sharedFolder
-            }
-            foreach ($subNode in $node.Nodes) {
-                if ($subNode.Checked) {
-                    $selectedFolders += Get-OutlookFolder -folderName $subNode.Text -parentFolder $sharedFolder
-                }
-            }
+            $selectedFolders += Get-SelectedFolders -node $node -parentFolder $sharedFolder
         }
 
         # Calculate total number of items for the progress bar
@@ -119,10 +130,15 @@ $exportButton.Add_Click({
 
         # Export emails from each selected folder
         foreach ($folder in $selectedFolders) {
+            $folderPath = Join-Path $saveDirectory ($folder.FolderPath -replace "^\\", "" -replace "\\", "\")
+            if (-not (Test-Path -Path $folderPath)) {
+                New-Item -ItemType Directory -Path $folderPath | Out-Null
+            }
+
             foreach ($item in $folder.Items) {
                 if ($item.Class -eq 43) {  # MailItem
-                    $subject = $item.Subject.Replace(":", "_").Replace("/", "_").Replace("\", "_")
-                    $filePath = Join-Path $saveDirectory "$subject.msg"
+                    $subject = $item.Subject.Replace(":", "_").Replace("/", "_").Replace("\", "_").Replace("?", "_").Replace("*", "_").Replace("[", "_").Replace("]", "_")
+                    $filePath = Join-Path $folderPath "$subject.msg"
                     $item.SaveAs($filePath, 3)  # 3 specifies the .msg format
                 }
                 $progressBar.Value += 1
