@@ -128,10 +128,15 @@ $exportButton.Add_Click({
         $progressBar.Maximum = $totalItems
         $progressBar.Value = 0
 
+        # Log for debugging
+        Write-Output "Total folders selected: $($selectedFolders.Count)"
+        Write-Output "Total items to export: $totalItems"
+
         # Export emails from each selected folder
         foreach ($folder in $selectedFolders) {
             $folderPath = Join-Path $saveDirectory ($folder.FolderPath -replace "^\\", "" -replace "\\", "\")
             if (-not (Test-Path -Path $folderPath)) {
+                Write-Output "Creating directory: $folderPath"  # Debugging log
                 New-Item -ItemType Directory -Path $folderPath | Out-Null
             }
 
@@ -139,6 +144,7 @@ $exportButton.Add_Click({
                 if ($item.Class -eq 43) {  # MailItem
                     $subject = $item.Subject.Replace(":", "_").Replace("/", "_").Replace("\", "_").Replace("?", "_").Replace("*", "_").Replace("[", "_").Replace("]", "_")
                     $filePath = Join-Path $folderPath "$subject.msg"
+                    Write-Output "Saving email to: $filePath"  # Debugging log
                     $item.SaveAs($filePath, 3)  # 3 specifies the .msg format
                 }
                 $progressBar.Value += 1
