@@ -73,18 +73,19 @@ function Populate-TreeView ($parentNode, $folder) {
 }
 
 # Function to get the selected folders from the TreeView
-function Get-SelectedFolders ($node, $parentFolder) {
+function Get-SelectedFolders ($parentFolder, $node) {
     $selectedFolders = @()
 
     if ($node.Checked) {
         $folder = Get-OutlookFolder -folderName $node.Text -parentFolder $parentFolder
         if ($folder) {
+            Write-Output "Selected Folder: $($folder.FolderPath)"  # Debugging
             $selectedFolders += $folder
         }
     }
 
     foreach ($childNode in $node.Nodes) {
-        $selectedFolders += Get-SelectedFolders -node $childNode -parentFolder $parentFolder
+        $selectedFolders += Get-SelectedFolders -parentFolder $parentFolder -node $childNode
     }
 
     return $selectedFolders
@@ -118,8 +119,11 @@ $exportButton.Add_Click({
 
         # Collect all selected folders
         foreach ($node in $folderTreeView.Nodes) {
-            $selectedFolders += Get-SelectedFolders -node $node -parentFolder $sharedFolder
+            $selectedFolders += Get-SelectedFolders -parentFolder $sharedFolder -node $node
         }
+
+        # Verify selected folders
+        Write-Output "Total folders selected: $($selectedFolders.Count)"
 
         # Calculate total number of items for the progress bar
         foreach ($folder in $selectedFolders) {
@@ -127,10 +131,6 @@ $exportButton.Add_Click({
         }
         $progressBar.Maximum = $totalItems
         $progressBar.Value = 0
-
-        # Log for debugging
-        Write-Output "Total folders selected: $($selectedFolders.Count)"
-        Write-Output "Total items to export: $totalItems"
 
         # Export emails from each selected folder
         foreach ($folder in $selectedFolders) {
