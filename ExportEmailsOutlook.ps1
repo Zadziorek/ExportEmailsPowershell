@@ -141,11 +141,15 @@ $exportButton.Add_Click({
             }
 
             foreach ($item in $folder.Items) {
-                if ($item.Class -eq 43) {  # MailItem
-                    $subject = $item.Subject.Replace(":", "_").Replace("/", "_").Replace("\", "_").Replace("?", "_").Replace("*", "_").Replace("[", "_").Replace("]", "_")
-                    $filePath = Join-Path $folderPath "$subject.msg"
-                    Write-Output "Saving email to: $filePath"  # Debugging log
-                    $item.SaveAs($filePath, 3)  # 3 specifies the .msg format
+                try {
+                    if ($item.Class -eq 43) {  # MailItem
+                        $subject = $item.Subject.Replace(":", "_").Replace("/", "_").Replace("\", "_").Replace("?", "_").Replace("*", "_").Replace("[", "_").Replace("]", "_")
+                        $filePath = Join-Path $folderPath "$subject.msg"
+                        Write-Output "Attempting to save email to: $filePath"  # Debugging log
+                        $item.SaveAs($filePath, 3)  # 3 specifies the .msg format
+                    }
+                } catch {
+                    Write-Error "Error saving email: $_"
                 }
                 $progressBar.Value += 1
                 $form.Refresh()  # Refresh the form to update the progress bar
