@@ -146,8 +146,8 @@ $exportButton.Add_Click({
             foreach ($item in $folder.Items) {
                 try {
                     if ($item.Class -eq 43) {  # MailItem
-                        $subject = $item.Subject.Replace(":", "_").Replace("/", "_").Replace("\", "_").Replace("?", "_").Replace("*", "_").Replace("[", "_").Replace("]", "_")
-                        $filePath = Join-Path $folderPath "$subject.msg"
+                        $id = $item.EntryID  # Use the EntryID as part of the filename
+                        $filePath = Join-Path $folderPath "$id.msg"
                         Write-Output "Attempting to save email to: $filePath"  # Debugging log
                         $item.SaveAs($filePath, 3)  # 3 specifies the .msg format
                     }
